@@ -12,7 +12,7 @@ const notoSerifTC = Noto_Serif_TC({
 export const metadata: Metadata = {
   title: "線上打小人出氣筒 · 驚蟄祭壇",
   description:
-    "驚蟄時節，線上打小人出氣筒。輸入讓你勞氣的人事物，拖鞋、桃木劍、五雷符一一招呼，咒語纏繞、紙人顫抖，為你掃走晦氣、迎來好運。",
+    "驚蟄時節，線上打小人出氣筒。輸入讓你勞氣的人事物，用拖鞋、長針、九節鞭、桃木劍拍打紙人，咒語飄動、紙人顫抖，舒緩心頭之火。",
   keywords: [
     "打小人",
     "驚蟄",
@@ -22,9 +22,9 @@ export const metadata: Metadata = {
     "拖鞋打小人",
     "線上紓壓",
   ],
-  authors: [{ name: "Beat the Villain" }],
+  authors: [{ name: "Crystal32378" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/favicon.svg",
   },
   openGraph: {
     title: "線上打小人出氣筒 · 驚蟄祭壇",
