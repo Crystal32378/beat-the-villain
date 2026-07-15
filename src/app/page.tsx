@@ -672,10 +672,26 @@ export default function Home() {
   const weaponRef = useRef<WeaponId>('slipper')
   const rageRef = useRef(0)        // 同步追蹤怒氣值
   const rageBurstingRef = useRef(false) // 怒氣爆發進行中標記
+  const burstTimersRef = useRef<Set<number>>(new Set()) // 爆發期間所有 timers，供 reset/換小人/卸載時取消
+
+  // 取消所有爆發 timers（供 reset/換小人/卸載呼叫；提前宣告供 commitVillain/handleReset 使用）
+  const cancelAllBurstTimers = useCallback(() => {
+    burstTimersRef.current.forEach((id) => window.clearTimeout(id))
+    burstTimersRef.current.clear()
+    rageBurstingRef.current = false
+  }, [])
 
   // 初始化音效引擎
   useEffect(() => {
     soundRef.current = new BeatSoundEngine()
+  }, [])
+
+  // 卸載時取消所有爆發 timers，避免攻擊落到已卸載的元件
+  useEffect(() => {
+    return () => {
+      burstTimersRef.current.forEach((id) => window.clearTimeout(id))
+      burstTimersRef.current.clear()
+    }
   }, [])
 
   // 從 localStorage 載入統計（僅在客戶端，且延後一幀以避開 SSR 水合不一致）
@@ -709,11 +725,12 @@ export default function Home() {
     return s
   }, [hits])
 
-  // 提交小人名稱
+  // 提交小人名稱（換小人時取消爆發 timers，避免剩餘攻擊落到新目標）
   const commitVillain = useCallback(
     (name: string) => {
       const trimmed = name.trim()
       if (!trimmed) return
+      cancelAllBurstTimers()
       setVillainName(trimmed)
       setCommittedName(trimmed)
       committedNameRef.current = trimmed
@@ -729,7 +746,7 @@ export default function Home() {
       setFloatingTexts([])
       setWeaponFx([])
     },
-    []
+    [cancelAllBurstTimers]
   )
 
   // 處理擊打（用 refs 避免 stale state，武器傷害真正累積影響階段）
@@ -895,11 +912,24 @@ export default function Home() {
 
   // 怒氣爆發（手動觸發：滿 100 後按鈕可按，真正五連擊，再歸零）
   // 副作用全部在 updater 外執行，不在 setRage 的 updater 內觸發
+  // 所有 timers 存入 burstTimersRef，供 reset/換小人/卸載時取消
   const handleRageBurst = useCallback(() => {
     // 用 ref 檢查，避免在 state updater 內做判斷
     if (rageRef.current < RAGE_MAX) return
+    // 先取消任何殘留的爆發 timers（防重複觸發疊加）
+    cancelAllBurstTimers()
     // 標記爆發中，期間停止怒氣累積
     rageBurstingRef.current = true
+
+    // 輔助：建立受追蹤的 timer
+    const trackedTimeout = (fn: () => void, delay: number) => {
+      const id = window.setTimeout(() => {
+        burstTimersRef.current.delete(id)
+        fn()
+      }, delay)
+      burstTimersRef.current.add(id)
+      return id
+    }
 
     // 音效 + 視覺
     if (soundRef.current) soundRef.current.playRageBurst()
@@ -919,7 +949,7 @@ export default function Home() {
     for (let i = 0; i < 5; i++) {
       const cid = ++idCounter.current
       const c = pickRandom(ALL_CURSES)
-      window.setTimeout(() => {
+      trackedTimeout(() => {
         setFloatingTexts((prev) => [
           ...prev,
           {
@@ -932,29 +962,32 @@ export default function Home() {
             size: 14,
           },
         ])
-        window.setTimeout(() => {
+        const cleanupId = window.setTimeout(() => {
           setFloatingTexts((prev) => prev.filter((t) => t.id !== cid))
         }, 2400)
+        burstTimersRef.current.add(cleanupId)
       }, i * 150)
     }
     // 真正五連擊（用桃木劍，每擊 -5 傷害，間隔 120ms）
     for (let i = 0; i < 5; i++) {
-      window.setTimeout(() => {
+      trackedTimeout(() => {
         handleBeat(undefined, 'sword')
       }, i * 120)
     }
-    // 五連擊結束後解除爆發標記 + 歸零怒氣
-    window.setTimeout(() => {
+    // 五連擊結束後解除爆發標記
+    trackedTimeout(() => {
       rageBurstingRef.current = false
     }, 5 * 120 + 100)
+    // 歸零怒氣
     rageRef.current = 0
     setRage(0)
-  }, [handleBeat])
+  }, [handleBeat, cancelAllBurstTimers])
 
 
 
-  // 重置當前小人（同步 refs）
+  // 重置當前小人（同步 refs + 取消爆發 timers）
   const handleReset = useCallback(() => {
+    cancelAllBurstTimers()
     setHits(0)
     hitsRef.current = 0
     setRage(0)
@@ -967,7 +1000,7 @@ export default function Home() {
     setBloodDrops([])
     setFloatingTexts([])
     setWeaponFx([])
-  }, [])
+  }, [cancelAllBurstTimers])
 
   // 切換武器（同步 ref）
   const handleSelectWeapon = useCallback((id: WeaponId) => {
