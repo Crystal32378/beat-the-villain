@@ -646,7 +646,7 @@ export default function Home() {
   const [weapon, setWeapon] = useState<WeaponId>('slipper')
   const weaponInfo = WEAPONS.find((w) => w.id === weapon)!
 
-  // 擊中狀態
+  // 擊中狀態（hits 現為「累積傷害值」，武器傷害真正影響階段）
   const [hits, setHits] = useState(0)
   const [rage, setRage] = useState(0)
   const [shaking, setShaking] = useState(false)
@@ -661,15 +661,37 @@ export default function Home() {
   const [stats, setStats] = useState<Stats>(defaultStats)
   const [soundOn, setSoundOn] = useState(true)
 
-  // refs
+  // refs（避免連擊 stale state）
   const soundRef = useRef<BeatSoundEngine | null>(null)
   const altarRef = useRef<HTMLDivElement | null>(null)
   const idCounter = useRef(0)
   const blessingTriggeredRef = useRef(false)
+  const hitsRef = useRef(0)        // 同步追蹤累積傷害
+  const stampedRef = useRef(false) // 同步追蹤蓋印狀態
+  const committedNameRef = useRef('小人')
+  const weaponRef = useRef<WeaponId>('slipper')
+  const rageRef = useRef(0)        // 同步追蹤怒氣值
+  const rageBurstingRef = useRef(false) // 怒氣爆發進行中標記
+  const burstTimersRef = useRef<Set<number>>(new Set()) // 爆發期間所有 timers，供 reset/換小人/卸載時取消
+
+  // 取消所有爆發 timers（供 reset/換小人/卸載呼叫；提前宣告供 commitVillain/handleReset 使用）
+  const cancelAllBurstTimers = useCallback(() => {
+    burstTimersRef.current.forEach((id) => window.clearTimeout(id))
+    burstTimersRef.current.clear()
+    rageBurstingRef.current = false
+  }, [])
 
   // 初始化音效引擎
   useEffect(() => {
     soundRef.current = new BeatSoundEngine()
+  }, [])
+
+  // 卸載時取消所有爆發 timers，避免攻擊落到已卸載的元件
+  useEffect(() => {
+    return () => {
+      burstTimersRef.current.forEach((id) => window.clearTimeout(id))
+      burstTimersRef.current.clear()
+    }
   }, [])
 
   // 從 localStorage 載入統計（僅在客戶端，且延後一幀以避開 SSR 水合不一致）
@@ -694,7 +716,7 @@ export default function Home() {
     soundRef.current?.setEnabled(soundOn)
   }, [soundOn])
 
-  // 計算紙人階段
+  // 計算紙人階段（依累積傷害）
   const stage = useMemo(() => {
     let s = 0
     for (let i = 0; i < PAPER_STAGES.length; i++) {
@@ -703,45 +725,60 @@ export default function Home() {
     return s
   }, [hits])
 
-  // 提交小人名稱
+  // 提交小人名稱（換小人時取消爆發 timers，避免剩餘攻擊落到新目標）
   const commitVillain = useCallback(
     (name: string) => {
       const trimmed = name.trim()
       if (!trimmed) return
+      cancelAllBurstTimers()
       setVillainName(trimmed)
       setCommittedName(trimmed)
+      committedNameRef.current = trimmed
       setHits(0)
+      hitsRef.current = 0
       setRage(0)
+      rageRef.current = 0
       setStamped(false)
+      stampedRef.current = false
       setStampAnim(false)
       blessingTriggeredRef.current = false
       setBloodDrops([])
       setFloatingTexts([])
       setWeaponFx([])
     },
-    []
+    [cancelAllBurstTimers]
   )
 
-  // 處理擊打
+  // 處理擊打（用 refs 避免 stale state，武器傷害真正累積影響階段）
   const handleBeat = useCallback(
-    (e?: React.MouseEvent | React.TouchEvent, customWeapon?: WeaponId) => {
-      const useWeapon = customWeapon ?? weapon
+    (e?: React.MouseEvent | React.TouchEvent | React.KeyboardEvent, customWeapon?: WeaponId) => {
+      const useWeapon = customWeapon ?? weaponRef.current
       const wInfo = WEAPONS.find((w) => w.id === useWeapon)!
-      const newHits = hits + 1
+      // 累積傷害（非次數），武器傷害直接影響紙人階段
+      const prevHits = hitsRef.current
+      const newHits = prevHits + wInfo.damage
+      hitsRef.current = newHits
+      const name = committedNameRef.current
 
-      // 計算點擊位置（在祭壇內的相對座標）
+      // 計算點擊位置（在祭壇內的相對座標；鍵盤觸發時用中央）
       let x = 50, y = 50
-      if (e && altarRef.current) {
+      if (e && altarRef.current && 'clientX' in e) {
         const rect = altarRef.current.getBoundingClientRect()
-        const point = 'touches' in e && e.touches.length
-          ? { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }
-          : 'changedTouches' in e && e.changedTouches.length
-            ? { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY }
-            : (e as React.MouseEvent)
-        x = ((point.clientX - rect.left) / rect.width) * 100
-        y = ((point.clientY - rect.top) / rect.height) * 100
+        const me = e as React.MouseEvent
+        x = ((me.clientX - rect.left) / rect.width) * 100
+        y = ((me.clientY - rect.top) / rect.height) * 100
         x = Math.max(10, Math.min(90, x))
         y = Math.max(10, Math.min(90, y))
+      } else if (e && altarRef.current && 'touches' in e) {
+        const rect = altarRef.current.getBoundingClientRect()
+        const te = e as React.TouchEvent
+        const touch = te.touches[0] ?? te.changedTouches[0]
+        if (touch) {
+          x = ((touch.clientX - rect.left) / rect.width) * 100
+          y = ((touch.clientY - rect.top) / rect.height) * 100
+          x = Math.max(10, Math.min(90, x))
+          y = Math.max(10, Math.min(90, y))
+        }
       }
 
       // 音效
@@ -803,7 +840,7 @@ export default function Home() {
         setFloatingTexts((prev) => prev.filter((t) => t.id !== dmgId))
       }, 900)
 
-      // 咒語（30% 機率出現，避免太擠）
+      // 咒語（32% 機率出現，避免太擠）
       if (Math.random() < 0.32) {
         const curseId = ++idCounter.current
         const categories = ['頭', '手', '腳', '口', '心']
@@ -826,59 +863,20 @@ export default function Home() {
         }, 2400)
       }
 
-      // 更新數值
+      // 更新累積傷害（functional update，避免連擊 stale state）
       setHits(newHits)
 
-      // 怒氣條
-      const rageGain = wInfo.damage * 5 + Math.floor(Math.random() * 3)
-      setRage((r) => {
-        const newRage = Math.min(RAGE_MAX, r + rageGain)
-        if (newRage >= RAGE_MAX && r < RAGE_MAX) {
-          // 怒氣爆發
-          window.setTimeout(() => {
-            if (soundRef.current) soundRef.current.playRageBurst()
-            setFloatingTexts((prev) => [
-              ...prev,
-              {
-                id: ++idCounter.current,
-                x: 50,
-                y: 30,
-                text: '怒氣爆發！百煞退散！',
-                type: 'curse-big',
-                color: '#ff6b35',
-                size: 22,
-              },
-            ])
-            // 多重咒語齊發
-            for (let i = 0; i < 5; i++) {
-              const cid = ++idCounter.current
-              const c = pickRandom(ALL_CURSES)
-              window.setTimeout(() => {
-                setFloatingTexts((prev) => [
-                  ...prev,
-                  {
-                    id: cid,
-                    x: 20 + Math.random() * 60,
-                    y: 40 + Math.random() * 30,
-                    text: c,
-                    type: 'curse',
-                    color: '#ffd700',
-                    size: 14,
-                  },
-                ])
-                window.setTimeout(() => {
-                  setFloatingTexts((prev) => prev.filter((t) => t.id !== cid))
-                }, 2400)
-              }, i * 150)
-            }
-          }, 100)
-          return 0 // 重置怒氣
-        }
-        return newRage
-      })
+      // 怒氣條（爆發期間停止累積；累積到滿就保持滿，等使用者按按鈕才爆發歸零）
+      if (!rageBurstingRef.current) {
+        const rageGain = wInfo.damage * 5 + Math.floor(Math.random() * 3)
+        const newRage = Math.min(RAGE_MAX, rageRef.current + rageGain)
+        rageRef.current = newRage
+        setRage(newRage)
+      }
 
-      // 達到蓋印門檻
-      if (newHits >= STAMP_THRESHOLD && !stamped) {
+      // 達到蓋印門檻（用 ref 避免重複觸發）
+      if (newHits >= STAMP_THRESHOLD && !stampedRef.current) {
+        stampedRef.current = true
         setStamped(true)
         setStampAnim(true)
         if (soundRef.current) soundRef.current.playStamp()
@@ -891,47 +889,123 @@ export default function Home() {
         window.setTimeout(() => setBlessingOpen(true), 1200)
       }
 
-      // 更新統計
+      // 更新統計（每次擊打 +1 下；跨過蓋印門檻那次 villainsBeaten +1）
+      const crossedStamp = prevHits < STAMP_THRESHOLD && newHits >= STAMP_THRESHOLD
       setStats((prev) => {
         const next: Stats = {
           ...prev,
           totalHits: prev.totalHits + 1,
           todayHits: prev.todayHits + 1,
           todayDate: todayStr(),
-          villainsBeaten: newHits === STAMP_THRESHOLD ? prev.villainsBeaten + 1 : prev.villainsBeaten,
+          villainsBeaten: crossedStamp ? prev.villainsBeaten + 1 : prev.villainsBeaten,
           villainRanking: {
             ...prev.villainRanking,
-            [committedName]: (prev.villainRanking[committedName] || 0) + 1,
+            [name]: (prev.villainRanking[name] || 0) + 1,
           },
         }
         saveStats(next)
         return next
       })
     },
-    [weapon, hits, stamped, committedName]
+    []
   )
 
-  // 怒氣爆發（手動觸發）
+  // 怒氣爆發（手動觸發：滿 100 後按鈕可按，真正五連擊，再歸零）
+  // 副作用全部在 updater 外執行，不在 setRage 的 updater 內觸發
+  // 所有 timers 存入 burstTimersRef，供 reset/換小人/卸載時取消
   const handleRageBurst = useCallback(() => {
-    if (rage < RAGE_MAX) return
-    // 連續擊打 5 次
+    // 用 ref 檢查，避免在 state updater 內做判斷
+    if (rageRef.current < RAGE_MAX) return
+    // 先取消任何殘留的爆發 timers（防重複觸發疊加）
+    cancelAllBurstTimers()
+    // 標記爆發中，期間停止怒氣累積
+    rageBurstingRef.current = true
+
+    // 輔助：建立受追蹤的 timer
+    const trackedTimeout = (fn: () => void, delay: number) => {
+      const id = window.setTimeout(() => {
+        burstTimersRef.current.delete(id)
+        fn()
+      }, delay)
+      burstTimersRef.current.add(id)
+      return id
+    }
+
+    // 音效 + 視覺
+    if (soundRef.current) soundRef.current.playRageBurst()
+    setFloatingTexts((prev) => [
+      ...prev,
+      {
+        id: ++idCounter.current,
+        x: 50,
+        y: 30,
+        text: '怒氣爆發！百煞退散！',
+        type: 'curse-big',
+        color: '#ff6b35',
+        size: 22,
+      },
+    ])
+    // 多重咒語齊發
     for (let i = 0; i < 5; i++) {
-      window.setTimeout(() => {
+      const cid = ++idCounter.current
+      const c = pickRandom(ALL_CURSES)
+      trackedTimeout(() => {
+        setFloatingTexts((prev) => [
+          ...prev,
+          {
+            id: cid,
+            x: 20 + Math.random() * 60,
+            y: 40 + Math.random() * 30,
+            text: c,
+            type: 'curse',
+            color: '#ffd700',
+            size: 14,
+          },
+        ])
+        const cleanupId = window.setTimeout(() => {
+          setFloatingTexts((prev) => prev.filter((t) => t.id !== cid))
+        }, 2400)
+        burstTimersRef.current.add(cleanupId)
+      }, i * 150)
+    }
+    // 真正五連擊（用桃木劍，每擊 -5 傷害，間隔 120ms）
+    for (let i = 0; i < 5; i++) {
+      trackedTimeout(() => {
         handleBeat(undefined, 'sword')
       }, i * 120)
     }
-  }, [rage, handleBeat])
-
-  // 重置當前小人
-  const handleReset = useCallback(() => {
-    setHits(0)
+    // 五連擊結束後解除爆發標記
+    trackedTimeout(() => {
+      rageBurstingRef.current = false
+    }, 5 * 120 + 100)
+    // 歸零怒氣
+    rageRef.current = 0
     setRage(0)
+  }, [handleBeat, cancelAllBurstTimers])
+
+
+
+  // 重置當前小人（同步 refs + 取消爆發 timers）
+  const handleReset = useCallback(() => {
+    cancelAllBurstTimers()
+    setHits(0)
+    hitsRef.current = 0
+    setRage(0)
+    rageRef.current = 0
+    rageBurstingRef.current = false
     setStamped(false)
+    stampedRef.current = false
     setStampAnim(false)
     blessingTriggeredRef.current = false
     setBloodDrops([])
     setFloatingTexts([])
     setWeaponFx([])
+  }, [cancelAllBurstTimers])
+
+  // 切換武器（同步 ref）
+  const handleSelectWeapon = useCallback((id: WeaponId) => {
+    weaponRef.current = id
+    setWeapon(id)
   }, [])
 
   // 排行榜
@@ -1026,10 +1100,13 @@ export default function Home() {
           </div>
         </section>
 
-        {/* ====== 祭壇主區 ====== */}
+        {/* ====== 祭壇主區（支援滑鼠、觸控、Enter/Space 鍵操作）====== */}
         <section
           ref={altarRef}
-          className="relative noise-overlay paper-texture rounded-2xl border border-[rgba(212,160,23,0.3)] overflow-hidden mb-4 select-none"
+          role="button"
+          tabIndex={0}
+          aria-label="打小人祭壇，按 Enter 或 Space 出手，或點擊任意位置出手"
+          className="relative noise-overlay paper-texture rounded-2xl border border-[rgba(212,160,23,0.3)] overflow-hidden mb-4 select-none focus:outline-none focus:ring-2 focus:ring-[#d4a017] focus:ring-offset-2 focus:ring-offset-[#1a0808]"
           style={{
             background:
               'linear-gradient(to bottom, rgba(58,8,8,0.85) 0%, rgba(26,8,8,0.95) 50%, rgba(58,8,8,0.7) 100%)',
@@ -1040,6 +1117,12 @@ export default function Home() {
           onTouchEnd={(e) => {
             e.preventDefault()
             handleBeat(e)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              handleBeat(e)
+            }
           }}
         >
           {/* 祭壇金光暈 */}
@@ -1179,7 +1262,7 @@ export default function Home() {
           {/* 左上：擊打計數 */}
           <div className="absolute top-3 left-3 z-30">
             <div className="bg-[rgba(26,8,8,0.7)] border border-[rgba(212,160,23,0.3)] rounded-lg px-3 py-1.5 backdrop-blur-sm">
-              <div className="text-[10px] text-[#b8a08a] tracking-wider">受擊次數</div>
+              <div className="text-[10px] text-[#b8a08a] tracking-wider">累積傷害</div>
               <div className="text-2xl font-black text-[#d4a017] leading-none">{hits}</div>
             </div>
           </div>
@@ -1195,7 +1278,7 @@ export default function Home() {
 
           {/* 底部提示 */}
           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 z-30 text-[10px] text-[#b8a08a] opacity-70 pointer-events-none">
-            輕點祭壇任何位置即可出手
+            輕點祭壇或按 Enter/Space 即可出手
           </div>
         </section>
 
@@ -1237,7 +1320,7 @@ export default function Home() {
             {WEAPONS.map((w) => (
               <button
                 key={w.id}
-                onClick={() => setWeapon(w.id)}
+                onClick={() => handleSelectWeapon(w.id)}
                 className={`relative rounded-lg p-2 border transition active:scale-95 ${
                   weapon === w.id
                     ? 'bg-[rgba(196,30,58,0.25)] border-[#d4a017] shadow-md'
