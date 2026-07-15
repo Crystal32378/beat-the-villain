@@ -1,4 +1,4 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# See https://help.github.com/articles/ignoring-files/ for about ignoring files.
 
 # dependencies
 node_modules
@@ -30,25 +30,45 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
+!.env.example
 
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-local-*
-.claude
-.z-ai-config
+
+# logs
 *.log
 dev.log
 dev.out.log
-test
+server.log
+
+# editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+
+# local config
+local-*
+.claude
+.z-ai-config
+.zscripts
 prompt
 
-server.log
-# Skills directory
+# prisma local db (保留 schema，但忽略本地資料庫檔案)
+db/
+prisma/migrations/
+
+# internal
 /skills/
+/examples/
+/upload/
+package.json.bak

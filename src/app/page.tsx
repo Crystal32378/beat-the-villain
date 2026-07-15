@@ -8,18 +8,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 // 預設小人清單
 const PRESET_VILLAINS: { label: string; emoji: string }[] = [
-  { label: '老細小人', emoji: '💼' },
-  { label: '上司小人', emoji: '👔' },
-  { label: '同事小人', emoji: '🗂️' },
+  { label: '慣老闆', emoji: '💼' },
+  { label: '機車主管', emoji: '👔' },
+  { label: '愛推事同事', emoji: '🗂️' },
   { label: '渣男', emoji: '💔' },
   { label: '渣女', emoji: '💔' },
   { label: '前任', emoji: '👻' },
-  { label: '八卦親戚', emoji: '👵' },
-  { label: '虛偽朋友', emoji: '🎭' },
-  { label: '拖數客', emoji: '💸' },
-  { label: '煩人鄰居', emoji: '🏠' },
-  { label: '網絡槓精', emoji: '📱' },
-  { label: '路怒司機', emoji: '🚗' },
+  { label: '三姑六婆', emoji: '👵' },
+  { label: '假面朋友', emoji: '🎭' },
+  { label: '奧客', emoji: '💸' },
+  { label: '惡鄰居', emoji: '🏠' },
+  { label: '鍵盤俠', emoji: '📱' },
+  { label: '暴怒駕駛', emoji: '🚗' },
 ]
 
 // 武器系統
@@ -33,37 +33,37 @@ const WEAPONS: {
   desc: string
   animClass: string
 }[] = [
-  { id: 'slipper', name: '塑膠拖鞋', icon: '🩴', damage: 1, color: '#d4a017', desc: '入門級，平平冇奇但勝在順手', animClass: 'animate-slipper-slam' },
+  { id: 'slipper', name: '塑膠拖鞋', icon: '🩴', damage: 1, color: '#d4a017', desc: '入門款，平凡無奇但順手好握', animClass: 'animate-slipper-slam' },
   { id: 'needle', name: '五吋長針', icon: '📍', damage: 2, color: '#c41e3a', desc: '針針見血，專破小人骨血', animClass: 'animate-needle-stab' },
-  { id: 'whip', name: '九節鞭', icon: '⛓️', damage: 3, color: '#ffd700', desc: '啪啪有聲，連綿不絕', animClass: 'animate-whip-lash' },
+  { id: 'whip', name: '九節鞭', icon: '⛓️', damage: 3, color: '#ffd700', desc: '啪啪作響，連綿不絕', animClass: 'animate-whip-lash' },
   { id: 'sword', name: '桃木劍', icon: '🗡️', damage: 5, color: '#ff6b35', desc: '道法正氣，一擊破煞', animClass: 'animate-sword-strike' },
 ]
 
 // 咒語庫（按部位分類）
 const CURSES: Record<string, string[]> = {
   頭: [
-    '打你小人頭，等你冇仇報',
-    '打你小人頭，頭暈腦脹冇運走',
+    '打你小人頭，讓你惡有惡報',
+    '打你小人頭，頭暈腦脹沒好運',
     '打你小人頭，煩惱通通落到你頭',
     '打你小人頭，作惡多端終有報',
   ],
   手: [
     '打你小人手，伸手必被斷',
-    '打你小人手，做咩都甩手',
-    '打你小人手，搶嘢搶唔到',
-    '打你小人手，黑手落到你度',
+    '打你小人手，做什麼都失手',
+    '打你小人手，搶東西搶不到',
+    '打你小人手，黑手落到你身上',
   ],
   腳: [
-    '打你小人腳，行路跌落坑',
-    '打你小人腳，舉步維艱冇人扶',
-    '打你小人腳，行衰運到腳軟',
-    '打你小人腳，遠行近走樣樣衰',
+    '打你小人腳，走路跌進坑',
+    '打你小人腳，舉步維艱沒人扶',
+    '打你小人腳，走衰運走到腳軟',
+    '打你小人腳，遠走近走樣樣衰',
   ],
   口: [
     '打你小人口，是非出口禍自招',
-    '打你小人口，講大話食牙𦧲',
+    '打你小人口，說謊話爛嘴巴',
     '打你小人口，口舌招尤惹是非',
-    '打你小人口，惡毒說話迴響返',
+    '打你小人口，惡毒話語迴向你',
   ],
   心: [
     '打你小人心，黑心毒計反噬身',
@@ -73,7 +73,7 @@ const CURSES: Record<string, string[]> = {
   ],
   收尾: [
     '小人遠離我，貴人近身來',
-    '晦氣盡消除，好運跟住走',
+    '晦氣盡消除，好運跟著走',
     '百煞皆退散，福祿自然來',
     '一打小人，二迎貴人，三聚財氣',
   ],
@@ -977,7 +977,7 @@ export default function Home() {
             線上打小人出氣筒
           </h1>
           <p className="mt-2 text-sm text-[#b8a08a]">
-            拖鞋一落，晦氣消散 · 一邊打一邊唸咒，包你心頭之火化作青煙
+            拖鞋一拍，晦氣消散 · 一邊打一邊唸咒，讓你心頭之火化作青煙
           </p>
         </header>
 
@@ -994,7 +994,7 @@ export default function Home() {
                   setInputValue('')
                 }
               }}
-              placeholder={`輸入要打嘅小人名（當前：${committedName}）`}
+              placeholder={`輸入要打的小人名（當前：${committedName}）`}
               maxLength={12}
               className="flex-1 bg-[rgba(139,0,0,0.25)] border border-[rgba(212,160,23,0.25)] rounded-lg px-4 py-2.5 text-[#f5e6d0] placeholder-[#b8a08a] focus:outline-none focus:border-[#d4a017] focus:ring-1 focus:ring-[#d4a017] transition"
             />
@@ -1343,7 +1343,7 @@ export default function Home() {
         {/* ====== 頁尾說明 ====== */}
         <footer className="mt-auto pt-4 pb-2 text-center">
           <p className="text-[11px] text-[#b8a08a] leading-relaxed">
-            驚蟄打小人，乃香港民間傳統習俗，傳說驚蟄日雷聲驚醒冬眠蟲蛇，
+            驚蟄打小人，是民間傳統習俗，傳說驚蟄日雷聲驚醒冬眠蟲蛇，
             小人亦在此時活躍，故以拖鞋拍打紙人、唸咒驅趕。
           </p>
           <p className="text-[10px] text-[#7a6557] mt-2">
@@ -1378,7 +1378,7 @@ export default function Home() {
               <div className="text-xs text-[#b8a08a] mb-1">祭壇祝詞</div>
               <p className="text-sm text-[#f5e6d0] leading-relaxed">
                 小人遠離我，貴人近身來<br />
-                晦氣盡消除，好運跟住走<br />
+                晦氣盡消除，好運跟著走<br />
                 百煞皆退散，福祿自然來
               </p>
             </div>
