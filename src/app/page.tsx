@@ -600,8 +600,12 @@ function Candle({ side }: { side: 'left' | 'right' }) {
    ========================================================================= */
 
 function SmokeColumn({ offset = 0 }: { offset?: number }) {
-  const particles = useMemo(
-    () =>
+  // 粒子 mount 後才產生（僅 client）：SSR 與首次 render 皆為空陣列，避免 hydration mismatch
+  const [particles, setParticles] = useState<{ id: number; delay: number; x: number; left: number; size: number }[]>([])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setParticles(
       Array.from({ length: 5 }).map((_, i) => ({
         id: i,
         delay: i * 0.8 + offset,
@@ -609,8 +613,9 @@ function SmokeColumn({ offset = 0 }: { offset?: number }) {
         left: 40 + Math.random() * 20,
         size: 30 + Math.random() * 30,
       })),
-    [offset]
-  )
+    )
+  }, [offset])
+
   return (
     <div className="absolute pointer-events-none" style={{ top: '20%', left: 0, right: 0, height: '180px' }}>
       {particles.map((p) => (
