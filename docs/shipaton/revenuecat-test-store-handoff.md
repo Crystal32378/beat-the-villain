@@ -32,20 +32,26 @@
 | production UI（旗標關閉） | 無測試入口、無 key input、console 無錯誤 |
 | production build（旗標開啟） | 通過 |
 | production UI（旗標開啟） | 測試按鈕與 key input 正常、console 無錯誤 |
+| Offering 真實載入 | `Lifetime` / `$rc_lifetime` / Test Store 模擬價 `$99.99` |
+| Cancel 路徑 | 正常取消、不解鎖、不卡 loading |
+| Failed Purchase 路徑 | 顯示模擬失敗、不解鎖、可重新測試 |
+| Successful Purchase 路徑 | entitlement active 後才顯示成功並解鎖 |
+| 重新整理持久化 | `getCustomerInfo()` 重新確認後仍顯示已解鎖 |
+| RevenueCat 後台紀錄 | Sandbox purchase 為 `owned`，正確連結 active entitlement |
 
-## Dashboard 待完成
+## Dashboard 實際設定
 
-1. 建立獨立 project：`beat-the-villain`。
-2. 使用 project 自帶 Test Store app。
-3. 建立一次性 Product：`lifetime`。
-4. 建立 Entitlement：`beat-the-villain Premium`，連結 `lifetime`。
-5. 建立並設為 Current 的 Offering：`default`。
-6. 建立 Package：`$rc_lifetime`，連結 `lifetime`。
-7. Crystal 將 `test_` public SDK key 親自貼入本機測試視窗。
+- Project：`beat-the-villain`（`proj8626adaf`）
+- App：Test Store（`appa27f7b53cd`）
+- Product：`lifetime`，non-consumable，active
+- Entitlement：`beat-the-villain Premium`，已連結 `lifetime`
+- Offering：`default`，active / current
+- Package：`$rc_lifetime`，已連結 `lifetime`
+- Test Store public SDK key 只留在本機瀏覽器 localStorage，未寫入 repo 或文件。
 
 ## 完整驗收門檻
 
-以下全部通過前，不得標示 purchase flow VERIFIED：
+以下六項已於 2026-08-13 全數通過，因此本分支可標示為 **Web Test Store purchase flow VERIFIED**：
 
 1. Offering 能載入 Dashboard 商品名稱與模擬價格。
 2. Test Store Successful Purchase 後 entitlement active，收藏章解鎖。
@@ -53,6 +59,8 @@
 4. Failed Purchase 顯示失敗、不解鎖、不卡 loading。
 5. 重新整理後 `getCustomerInfo()` 仍確認 entitlement active。
 6. RevenueCat Dashboard Sandbox customer 顯示 transaction 與正確 entitlement。
+
+注意：`$99.99` 是 Test Store 模擬價，並非正式售價；本次驗證不代表 NT$60 已在 App Store Connect 或 Google Play Console 設定。
 
 ## 尚未涵蓋
 
