@@ -1,6 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import RevenueCatTestPaywall from '@/components/revenuecat-test-paywall'
+import {
+  RC_TEST_STORE_ENABLED,
+  checkPremiumEntitlement,
+  getStoredApiKey,
+  initRevenueCat,
+} from '@/lib/revenuecat'
 
 /* =========================================================================
    資料常量
@@ -665,6 +672,8 @@ export default function Home() {
   // 統計
   const [stats, setStats] = useState<Stats>(defaultStats)
   const [soundOn, setSoundOn] = useState(true)
+  const [paywallOpen, setPaywallOpen] = useState(false)
+  const [premiumUnlocked, setPremiumUnlocked] = useState(false)
 
   // refs（避免連擊 stale state）
   const soundRef = useRef<BeatSoundEngine | null>(null)
@@ -720,6 +729,18 @@ export default function Home() {
   useEffect(() => {
     soundRef.current?.setEnabled(soundOn)
   }, [soundOn])
+
+  // Test Store 僅在明確旗標開啟且本機已有 key 時初始化。
+  useEffect(() => {
+    if (!RC_TEST_STORE_ENABLED) return
+    const key = getStoredApiKey()
+    if (!key) return
+    void (async () => {
+      if (await initRevenueCat(key)) {
+        setPremiumUnlocked(await checkPremiumEntitlement())
+      }
+    })()
+  }, [])
 
   // 計算紙人階段（依累積傷害）
   const stage = useMemo(() => {
@@ -1426,6 +1447,14 @@ export default function Home() {
           >
             {soundOn ? '🔊 音效' : '🔇 靜音'}
           </button>
+          {RC_TEST_STORE_ENABLED && (
+            <button
+              onClick={() => setPaywallOpen(true)}
+              className="px-4 py-2 rounded-lg bg-[rgba(212,160,23,0.15)] border border-[#d4a017] text-[#d4a017] text-xs hover:bg-[rgba(212,160,23,0.25)] transition active:scale-95"
+            >
+              🧿 測試收藏章{premiumUnlocked ? '（已解鎖）' : ''}
+            </button>
+          )}
         </section>
 
         {/* ====== 頁尾說明 ====== */}
@@ -1489,6 +1518,14 @@ export default function Home() {
             </div>
           </div>
         </div>
+      )}
+
+      {RC_TEST_STORE_ENABLED && (
+        <RevenueCatTestPaywall
+          open={paywallOpen}
+          onClose={() => setPaywallOpen(false)}
+          onEntitlementChanged={setPremiumUnlocked}
+        />
       )}
     </main>
   )

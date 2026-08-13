@@ -1,4 +1,5 @@
 /* Browser smoke test + console check for beat-the-villain */
+/* eslint-disable @typescript-eslint/no-require-imports */
 const puppeteer = require('puppeteer-core')
 
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
